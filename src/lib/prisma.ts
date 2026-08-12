@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { getFormattedDatabaseUrl } from '../config/env';
 
 // If USE_PRISMA_ADAPTER is set to 'false', Prisma falls back to standard Prisma 6.19 MySQL engine
 const useAdapter = process.env.USE_PRISMA_ADAPTER !== 'false';
 
 const getAdapter = () => {
-  const host = process.env.DB_HOST || 'localhost';
+  const host = process.env.DB_HOST || '127.0.0.1';
   const port = Number(process.env.DB_PORT || 3306);
   const user = process.env.DB_USER || 'root';
   const password = process.env.DB_PASSWORD || '';
@@ -22,8 +23,9 @@ const getAdapter = () => {
     });
   }
 
-  if (process.env.DATABASE_URL) {
-    return new PrismaMariaDb(process.env.DATABASE_URL);
+  const formattedUrl = getFormattedDatabaseUrl();
+  if (formattedUrl) {
+    return new PrismaMariaDb(formattedUrl);
   }
 
   return new PrismaMariaDb({
@@ -41,13 +43,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const createPrismaClient = (): PrismaClient => {
+  const formattedUrl = getFormattedDatabaseUrl();
+
   if (useAdapter) {
     return new PrismaClient({
       adapter: getAdapter(),
+      ...(formattedUrl ? { datasources: { db: { url: formattedUrl } } } : {}),
     });
   }
-  // Fallback: standard Prisma 6.19 MySQL engine reading DATABASE_URL directly
-  return new PrismaClient();
+
+  // Fallback: standard Prisma 6.19 MySQL engine using dynamically resolved DATABASE_URL
+  return new PrismaClient({
+    ...(formattedUrl ? { datasources: { db: { url: formattedUrl } } } : {}),
+  });
 };
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

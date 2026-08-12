@@ -5,10 +5,53 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+/**
+ * Intelligent DATABASE_URL Resolver.
+ * If DATABASE_URL is missing, unformatted, or contains Hostinger placeholder strings,
+ * this function dynamically constructs a valid URL from DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, and DB_NAME.
+ */
+export const getFormattedDatabaseUrl = (): string => {
+  const rawUrl = process.env.DATABASE_URL || '';
+  const isInvalidPlaceholder =
+    !rawUrl ||
+    rawUrl.includes('YOUR_DB_USER') ||
+    rawUrl.includes('URL_ENCODED_PASSWORD') ||
+    rawUrl.includes('YOUR_DB_NAME') ||
+    !rawUrl.startsWith('mysql://');
+
+  const host = process.env.DB_HOST || '127.0.0.1';
+  const port = process.env.DB_PORT || '3306';
+  const user = process.env.DB_USER || '';
+  const pass = process.env.DB_PASSWORD || '';
+  const db = process.env.DB_NAME || '';
+
+  if (isInvalidPlaceholder && user && db) {
+    const encodedPass = encodeURIComponent(pass);
+    const constructedUrl = `mysql://${user}:${encodedPass}@${host}:${port}/${db}`;
+    process.env.DATABASE_URL = constructedUrl;
+    return constructedUrl;
+  }
+
+  if (rawUrl && !isInvalidPlaceholder) {
+    return rawUrl;
+  }
+
+  if (user && db) {
+    const encodedPass = encodeURIComponent(pass);
+    const constructedUrl = `mysql://${user}:${encodedPass}@${host}:${port}/${db}`;
+    process.env.DATABASE_URL = constructedUrl;
+    return constructedUrl;
+  }
+
+  return rawUrl;
+};
+
+// Ensure process.env.DATABASE_URL is populated before validation
+getFormattedDatabaseUrl();
+
 const validateEnv = () => {
   if (isProduction) {
     const requiredVars = [
-      'DATABASE_URL',
       'DB_HOST',
       'DB_PORT',
       'DB_USER',
@@ -59,8 +102,8 @@ export const env = {
   PORT: Number(process.env.PORT || 3000),
   NODE_ENV: process.env.NODE_ENV || 'development',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
-  DATABASE_URL: process.env.DATABASE_URL || '',
-  DB_HOST: process.env.DB_HOST || 'localhost',
+  DATABASE_URL: getFormattedDatabaseUrl(),
+  DB_HOST: process.env.DB_HOST || '127.0.0.1',
   DB_PORT: Number(process.env.DB_PORT || 3306),
   DB_USER: process.env.DB_USER || '',
   DB_PASSWORD: process.env.DB_PASSWORD || '',
