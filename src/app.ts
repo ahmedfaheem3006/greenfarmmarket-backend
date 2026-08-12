@@ -4,9 +4,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 
-import { PrismaClient } from '@prisma/client';
-
 import { env } from './config/env';
+import { prisma } from './lib/prisma';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 import authRoutes from './routes/auth.routes';
@@ -19,7 +18,6 @@ import contactRoutes from './routes/contact.routes';
 import adminRoutes from './routes/admin.routes';
 
 const app = express();
-const prisma = new PrismaClient();
 
 // Security Headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));

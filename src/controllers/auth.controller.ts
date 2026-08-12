@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { sendSuccess, sendError } from '../utils/response';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-
-const prisma = new PrismaClient();
 
 export const register = async (req: Request, res: Response) => {
   try {

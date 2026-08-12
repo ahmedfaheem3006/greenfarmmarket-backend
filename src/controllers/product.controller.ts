@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient, ProductStatus } from '@prisma/client';
+import { ProductStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { sendSuccess, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-
-const prisma = new PrismaClient();
 
 export const getProducts = async (req: Request, res: Response) => {
   try {

@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient, TransportTier } from '@prisma/client';
+import { TransportTier } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { sendSuccess, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-
-const prisma = new PrismaClient();
 
 // Centralized pricing constants
 const PRICE_PER_KM = 12;

@@ -1,10 +1,9 @@
 import { Response } from 'express';
-import { PrismaClient, DiagnosisMode } from '@prisma/client';
+import { DiagnosisMode } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { sendSuccess, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { aiProvider } from '../services/ai.service';
-
-const prisma = new PrismaClient();
 
 export const createDiagnosis = async (req: AuthenticatedRequest, res: Response) => {
   try {
