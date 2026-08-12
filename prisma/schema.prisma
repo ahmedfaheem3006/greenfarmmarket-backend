@@ -1,0 +1,281 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  FARMER
+  FARM_OWNER
+  FARM_MANAGER
+  AGRI_ENGINEER
+  WORKER
+  BUYER
+  SELLER
+  DRIVER
+  SERVICE_PROVIDER
+  ADMIN
+}
+
+enum AreaUnit {
+  FEDDAN
+  SQM
+  QIRAT
+}
+
+enum ProductStatus {
+  ACTIVE
+  SOLD
+  ARCHIVED
+}
+
+enum TransportTier {
+  TRANSPORT_ONLY
+  TRANSPORT_PAY
+  TRANSPORT_PAY_INSPECT
+}
+
+enum TransportStatus {
+  PENDING
+  ACCEPTED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum JobType {
+  HIRING
+  SEEKING
+}
+
+enum DiagnosisMode {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+enum ContactStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  phone            String            @unique
+  passwordHash     String
+  role             Role              @default(FARMER)
+  customRole       String?
+  governorate      String
+  city             String
+  avatar           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  farms            Farm[]
+  refreshTokens    RefreshToken[]
+  products         Product[]         @relation("SellerProducts")
+  favorites        Favorite[]
+  diagnoses        Diagnosis[]
+  transportReqs    TransportRequest[] @relation("UserTransportRequests")
+  transportOffers  TransportOffer[]  @relation("DriverOffers")
+  postedJobs       Job[]             @relation("UserJobs")
+  jobApplications  JobApplication[]  @relation("UserApplications")
+  contactMessages  ContactMessage[]
+  notifications    Notification[]
+  reports          Report[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Farm {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  governorate String
+  city        String
+  area        Float
+  areaUnit    AreaUnit    @default(FEDDAN)
+  mainCrops   String?
+  animalType  String?
+  animalCount Int?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  diagnoses   Diagnosis[]
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  type      String    @default("MARKETPLACE") // MARKETPLACE, NEWS
+  products  Product[]
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  sellerId    String
+  seller      User          @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
+  title       String
+  description String        @db.Text
+  categorySlug String
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  price       Float
+  priceUnit   String
+  governorate String
+  city        String
+  quantity    Int           @default(1)
+  condition   String        @default("NEW")
+  images      Json
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  favorites   Favorite[]
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+model Diagnosis {
+  id                  String        @id @default(uuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmId              String?
+  farm                Farm?         @relation(fields: [farmId], references: [id], onDelete: SetNull)
+  mode                DiagnosisMode @default(TEXT)
+  symptomsText        String?       @db.Text
+  fileUrl             String?
+  detectedDisease     String
+  confidenceScore     Float
+  severityLevel       String
+  recommendedTreatment String        @db.Text
+  satelliteTemp       String?
+  createdAt           DateTime      @default(now())
+}
+
+model TransportRequest {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation("UserTransportRequests", fields: [userId], references: [id], onDelete: Cascade)
+  tier             TransportTier   @default(TRANSPORT_ONLY)
+  pickupGov        String
+  pickupAddress    String
+  destGov          String
+  destAddress      String
+  cargoType        String
+  cargoWeightTons  Float?
+  distanceKm       Float
+  calculatedPrice  Float
+  status           TransportStatus @default(PENDING)
+  notes            String?         @db.Text
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model TransportOffer {
+  id           String   @id @default(uuid())
+  driverId     String
+  driver       User     @relation("DriverOffers", fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleType  String
+  originGov    String
+  destGov      String
+  capacityTons Float
+  tripDate     String
+  contactPhone String
+  createdAt    DateTime @default(now())
+}
+
+model Job {
+  id              String           @id @default(uuid())
+  publisherId     String
+  publisher       User             @relation("UserJobs", fields: [publisherId], references: [id], onDelete: Cascade)
+  type            JobType          @default(HIRING)
+  title           String
+  description     String?          @db.Text
+  roleCategory    String
+  governorate     String
+  salaryRange     String?
+  experienceYears String?
+  contactPhone    String
+  status          String           @default("ACTIVE")
+  createdAt       DateTime         @default(now())
+  applications    JobApplication[]
+}
+
+model JobApplication {
+  id          String   @id @default(uuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User     @relation("UserApplications", fields: [applicantId], references: [id], onDelete: Cascade)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  title       String
+  category    String
+  summary     String   @db.Text
+  content     String   @db.Text
+  imageUrl    String?
+  author      String   @default("جرين فارم ماركت AI")
+  createdAt   DateTime @default(now())
+}
+
+model ContactMessage {
+  id        String        @id @default(uuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String
+  phone     String
+  email     String
+  subject   String
+  message   String        @db.Text
+  status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType  String   // PRODUCT, USER, JOB
+  targetId    String
+  reason      String
+  createdAt   DateTime @default(now())
+}
