@@ -1,0 +1,81 @@
+name: Green Farm Market Backend Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: greenfarmmarket-backend-production
+  cancel-in-progress: true
+
+jobs:
+  build-test-and-promote:
+    name: Audit, Test, Migrate Ephemeral MySQL & Promote Backend
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_password
+          MYSQL_DATABASE: greenfarm_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 1. Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 2. Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. npm ci
+        run: npm ci
+
+      - name: 4. npx prisma validate
+        run: npx prisma validate
+
+      - name: 5. npx prisma generate
+        run: npx prisma generate
+
+      - name: 6. npx prisma migrate deploy against temporary MySQL
+        env:
+          DATABASE_URL: mysql://root:ci_root_password@127.0.0.1:3306/greenfarm_ci
+        run: npx prisma migrate deploy
+
+      - name: 7. npm run build
+        run: npm run build
+
+      - name: 8. npm test --if-present
+        run: npm test --if-present
+
+      - name: 9. Verify dist/server.js exists
+        run: |
+          if [ ! -f "dist/server.js" ]; then
+            echo "❌ CRITICAL FAILURE: dist/server.js was not generated!"
+            exit 1
+          fi
+          echo "✅ SUCCESS: dist/server.js compiled and verified successfully."
+
+      - name: 10. Promote tested commit to hostinger-production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git push origin HEAD:refs/heads/hostinger-production --force

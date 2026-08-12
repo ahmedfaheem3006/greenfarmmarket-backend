@@ -1,7 +1,7 @@
 import app from './app';
 
-// Hostinger controls process.env.PORT dynamically. Fallback to 5000 only for local dev.
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+// Hostinger controls process.env.PORT dynamically. Fallback to 3000 for Hostinger compatibility.
+const PORT = Number(process.env.PORT || 3000);
 
 app.listen(PORT, () => {
   console.log(`====================================================`);
