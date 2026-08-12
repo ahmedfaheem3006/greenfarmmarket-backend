@@ -18,6 +18,9 @@ jobs:
     name: Audit, Test, Migrate Ephemeral MySQL & Promote Backend
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: mysql://root:ci_root_password@127.0.0.1:3306/greenfarm_ci
+
     services:
       mysql:
         image: mysql:8.0
@@ -27,19 +30,19 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci_root_password"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
     steps:
       - name: 1. Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: 2. Setup Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: 'npm'
@@ -53,9 +56,7 @@ jobs:
       - name: 5. npx prisma generate
         run: npx prisma generate
 
-      - name: 6. npx prisma migrate deploy against temporary MySQL
-        env:
-          DATABASE_URL: mysql://root:ci_root_password@127.0.0.1:3306/greenfarm_ci
+      - name: 6. npx prisma migrate deploy against TEMPORARY GitHub Actions MySQL
         run: npx prisma migrate deploy
 
       - name: 7. npm run build
