@@ -6,6 +6,7 @@ import path from 'path';
 
 import { env } from './config/env';
 import { prisma } from './lib/prisma';
+import { probeDatabaseConnection } from './lib/databaseProbe';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 import authRoutes from './routes/auth.routes';
@@ -65,20 +66,32 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../', env.UPLOAD_DIR
 
 // Production Health Check Endpoint with Database Connectivity Check
 app.get('/api/health', async (_req, res) => {
-  let dbStatus = 'DISCONNECTED';
+  // 1. Direct MariaDB Driver Diagnostic Probe
+  const probeResult = await probeDatabaseConnection();
+  const driverStatus = probeResult.driverConnected ? 'CONNECTED' : 'DISCONNECTED';
+
+  // 2. Prisma Client Connectivity Check
+  let prismaStatus = 'DISCONNECTED';
   try {
     await prisma.$queryRaw`SELECT 1`;
-    dbStatus = 'CONNECTED';
-  } catch {
-    dbStatus = 'DISCONNECTED';
+    prismaStatus = 'CONNECTED';
+  } catch (err: any) {
+    prismaStatus = 'DISCONNECTED';
+    console.error('[PRISMA HEALTH CHECK FAILED]', {
+      name: err?.name || 'PrismaError',
+      message: err?.message ? err.message.substring(0, 150) : undefined,
+    });
   }
 
-  const isHealthy = dbStatus === 'CONNECTED';
+  const isHealthy = driverStatus === 'CONNECTED' && prismaStatus === 'CONNECTED';
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'OK' : 'DEGRADED',
     app: 'Green Farm Market API',
     environment: env.NODE_ENV,
-    database: dbStatus,
+    database: {
+      driver: driverStatus,
+      prisma: prismaStatus,
+    },
     timestamp: new Date().toISOString(),
   });
 });
