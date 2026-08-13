@@ -7,43 +7,25 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 /**
  * Intelligent DATABASE_URL Resolver.
- * If DATABASE_URL is missing, unformatted, or contains Hostinger placeholder strings,
- * this function dynamically constructs a valid URL from DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, and DB_NAME.
+ * Encodes special characters (such as colons, ampersands, and hashes) in passwords
+ * so Prisma's URL parser reads the exact credentials without syntax errors.
  */
 export const getFormattedDatabaseUrl = (): string => {
-  const rawUrl = process.env.DATABASE_URL || '';
-  const isInvalidPlaceholder =
-    !rawUrl ||
-    rawUrl.includes('YOUR_DB_USER') ||
-    rawUrl.includes('URL_ENCODED_PASSWORD') ||
-    rawUrl.includes('YOUR_DB_NAME') ||
-    !rawUrl.startsWith('mysql://');
-
   const host = process.env.DB_HOST || '127.0.0.1';
   const port = process.env.DB_PORT || '3306';
   const user = process.env.DB_USER || '';
   const pass = process.env.DB_PASSWORD || '';
   const db = process.env.DB_NAME || '';
 
-  if (isInvalidPlaceholder && user && db) {
-    const encodedPass = encodeURIComponent(pass);
-    const constructedUrl = `mysql://${user}:${encodedPass}@${host}:${port}/${db}`;
-    process.env.DATABASE_URL = constructedUrl;
-    return constructedUrl;
-  }
-
-  if (rawUrl && !isInvalidPlaceholder) {
-    return rawUrl;
-  }
-
   if (user && db) {
+    const encodedUser = encodeURIComponent(user);
     const encodedPass = encodeURIComponent(pass);
-    const constructedUrl = `mysql://${user}:${encodedPass}@${host}:${port}/${db}`;
+    const constructedUrl = `mysql://${encodedUser}:${encodedPass}@${host}:${port}/${db}`;
     process.env.DATABASE_URL = constructedUrl;
     return constructedUrl;
   }
 
-  return rawUrl;
+  return process.env.DATABASE_URL || '';
 };
 
 // Ensure process.env.DATABASE_URL is populated before validation
