@@ -66,21 +66,28 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../', env.UPLOAD_DIR
 
 // Production Health Check Endpoint with Database Connectivity Check
 app.get('/api/health', async (_req, res) => {
-  // 1. Direct MariaDB Driver Diagnostic Probe
-  const probeResult = await probeDatabaseConnection();
+  const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+  };
+
+  // 1. Direct MariaDB Driver Diagnostic Probe (3s max timeout)
+  const probeResult = await withTimeout(
+    probeDatabaseConnection(),
+    3000,
+    { driverConnected: false }
+  );
   const driverStatus = probeResult.driverConnected ? 'CONNECTED' : 'DISCONNECTED';
 
-  // 2. Prisma Client Connectivity Check
+  // 2. Prisma Client Connectivity Check (3s max timeout)
   let prismaStatus = 'DISCONNECTED';
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    prismaStatus = 'CONNECTED';
-  } catch (err: any) {
+    const prismaQuery = prisma.$queryRaw`SELECT 1`.then(() => 'CONNECTED').catch(() => 'DISCONNECTED');
+    prismaStatus = await withTimeout(prismaQuery, 3000, 'DISCONNECTED');
+  } catch {
     prismaStatus = 'DISCONNECTED';
-    console.error('[PRISMA HEALTH CHECK FAILED]', {
-      name: err?.name || 'PrismaError',
-      message: err?.message ? err.message.substring(0, 150) : undefined,
-    });
   }
 
   const isHealthy = driverStatus === 'CONNECTED' && prismaStatus === 'CONNECTED';
