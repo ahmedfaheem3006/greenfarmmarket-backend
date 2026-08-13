@@ -6,16 +6,10 @@ import { getFormattedDatabaseUrl } from '../config/env';
 const useAdapter = process.env.USE_PRISMA_ADAPTER !== 'false';
 
 const getAdapter = () => {
-  const host = process.env.DB_HOST || '127.0.0.1';
-  const port = Number(process.env.DB_PORT || 3306);
-  const user = process.env.DB_USER || 'root';
-  const password = process.env.DB_PASSWORD || '';
-  const database = process.env.DB_NAME || 'greenfarm';
-
   if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME) {
     return new PrismaMariaDb({
       host: process.env.DB_HOST,
-      port,
+      port: Number(process.env.DB_PORT || 3306),
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME,
@@ -29,11 +23,11 @@ const getAdapter = () => {
   }
 
   return new PrismaMariaDb({
-    host,
-    port,
-    user,
-    password,
-    database,
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'greenfarm',
     connectionLimit: 5,
   });
 };
@@ -43,16 +37,15 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const createPrismaClient = (): PrismaClient => {
-  const formattedUrl = getFormattedDatabaseUrl();
-
   if (useAdapter) {
+    // Driver Adapters in Prisma 6 do NOT allow custom datasources parameter inside PrismaClient constructor
     return new PrismaClient({
       adapter: getAdapter(),
-      ...(formattedUrl ? { datasources: { db: { url: formattedUrl } } } : {}),
     });
   }
 
   // Fallback: standard Prisma 6.19 MySQL engine using dynamically resolved DATABASE_URL
+  const formattedUrl = getFormattedDatabaseUrl();
   return new PrismaClient({
     ...(formattedUrl ? { datasources: { db: { url: formattedUrl } } } : {}),
   });
