@@ -89,6 +89,7 @@ model User {
   contactMessages  ContactMessage[]
   notifications    Notification[]
   reports          Report[]
+  auditLogs        AuditLog[]
 }
 
 model RefreshToken {
@@ -279,3 +280,29 @@ model Report {
   reason      String
   createdAt   DateTime @default(now())
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String   // LOGIN, LOGOUT, CREATE_PRODUCT, DELETE_PRODUCT, DIAGNOSIS, CREATE_JOB, SEARCH, UPDATE_SETTINGS
+  module      String   // AUTH, MARKETPLACE, AI_DOCTOR, TRANSPORT, JOBS, NEWS, SYSTEM
+  description String   @db.Text
+  ipAddress   String?
+  userAgent   String?  @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model MarketUpdate {
+  id        String   @id @default(uuid())
+  commodity String   // e.g. "قمح محلي", "عجول بقري حي", "طماطم صيفي", "ذرة صفراء"
+  price     Float
+  priceUnit String   // e.g. "ج.م / طن", "ج.م / كيلو قائم"
+  change    Float    @default(0.0) // percentage e.g. +2.4 or -1.5
+  trend     String   @default("STABLE") // UP, DOWN, STABLE
+  status    String   @default("ACTIVE")
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

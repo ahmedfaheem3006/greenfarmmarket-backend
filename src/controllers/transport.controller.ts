@@ -101,3 +101,56 @@ export const getTransportOffers = async (req: Request, res: Response) => {
     return sendError(res, 'خطأ في جلب عروض النقل.', [error.message], 500);
   }
 };
+
+export const createTransportOffer = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return sendError(res, 'يرجى تسجيل الدخول أولاً كقائد مركبة.', [], 401);
+
+    const { vehicleType, originGov, destGov, capacityTons, tripDate, contactPhone } = req.body;
+
+    if (!vehicleType || !originGov || !destGov || !capacityTons || !contactPhone) {
+      return sendError(res, 'جميع الحقول الأساسية لتسجيل المركبة مطلوبة.', [], 400);
+    }
+
+    const offer = await prisma.transportOffer.create({
+      data: {
+        driverId: userId,
+        vehicleType,
+        originGov,
+        destGov,
+        capacityTons: parseFloat(capacityTons) || 5,
+        tripDate: tripDate || 'متاح يومياً',
+        contactPhone,
+      },
+      include: {
+        driver: {
+          select: { id: true, name: true, phone: true, governorate: true },
+        },
+      },
+    });
+
+    return sendSuccess(res, 'تم تسجيل مركبتك وعرض النقل بنجاح في الشبكة!', offer, 201);
+  } catch (error: any) {
+    return sendError(res, 'فشل تسجيل المركبة.', [error.message], 500);
+  }
+};
+
+export const deleteTransportOffer = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    const offer = await prisma.transportOffer.findUnique({ where: { id } });
+    if (!offer) return sendError(res, 'العرض غير موجود.', [], 404);
+
+    if (offer.driverId !== userId && req.user?.role !== 'ADMIN') {
+      return sendError(res, 'غير مصرح لك بحذف هذا العرض.', [], 403);
+    }
+
+    await prisma.transportOffer.delete({ where: { id } });
+    return sendSuccess(res, 'تم حذف عرض النقل بنجاح.');
+  } catch (error: any) {
+    return sendError(res, 'فشل حذف عرض النقل.', [error.message], 500);
+  }
+};

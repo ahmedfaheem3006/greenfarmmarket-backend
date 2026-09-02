@@ -8,8 +8,6 @@ import { aiProvider } from '../services/ai.service';
 export const createDiagnosis = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return sendError(res, 'يرجى تسجيل الدخول أولاً.', [], 401);
-
     const { mode, symptomsText, farmId, cropOrAnimal, governorate } = req.body;
     let fileUrl: string | undefined;
 
@@ -27,22 +25,37 @@ export const createDiagnosis = async (req: AuthenticatedRequest, res: Response) 
       governorate,
     });
 
-    const diagnosis = await prisma.diagnosis.create({
-      data: {
-        userId,
-        farmId,
-        mode: diagnosisMode,
-        symptomsText,
-        fileUrl,
-        detectedDisease: result.detectedDisease,
-        confidenceScore: result.confidenceScore,
-        severityLevel: result.severityLevel,
-        recommendedTreatment: result.recommendedTreatment,
-        satelliteTemp: result.satelliteTemp,
-      },
-    });
+    let savedDiagnosis = null;
+    if (userId) {
+      savedDiagnosis = await prisma.diagnosis.create({
+        data: {
+          userId,
+          farmId: farmId || undefined,
+          mode: diagnosisMode,
+          symptomsText: symptomsText || 'فحص بصري / استفسار طبي',
+          fileUrl,
+          detectedDisease: result.detectedDisease,
+          confidenceScore: result.confidenceScore,
+          severityLevel: result.severityLevel,
+          recommendedTreatment: result.recommendedTreatment,
+          satelliteTemp: result.satelliteTemp,
+        },
+      });
+    }
 
-    return sendSuccess(res, 'تم تحليل الحالة وتشخيصها بنجاح عبر صيدلية AI!', diagnosis, 201);
+    const responsePayload = {
+      ...(savedDiagnosis || {}),
+      detectedDisease: result.detectedDisease,
+      confidenceScore: result.confidenceScore,
+      severityLevel: result.severityLevel,
+      recommendedTreatment: result.recommendedTreatment,
+      satelliteTemp: result.satelliteTemp,
+      disclaimer: result.disclaimer,
+      fileUrl,
+      mode: diagnosisMode,
+    };
+
+    return sendSuccess(res, 'تم تحليل الحالة وتشخيصها بنجاح عبر صيدلية AI!', responsePayload, 201);
   } catch (error: any) {
     console.error('Diagnosis error:', error);
     return sendError(res, 'فشل في إجراء تشخيص الذكاء الاصطناعي.', [error.message], 500);

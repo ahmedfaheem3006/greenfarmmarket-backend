@@ -22,6 +22,20 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
   }
 };
 
+export const optionalAuth = (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const payload = verifyAccessToken(token);
+      req.user = payload;
+    } catch {
+      // ignore token verification error for optional auth
+    }
+  }
+  next();
+};
+
 export const requireRoles = (...roles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {

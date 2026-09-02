@@ -59,3 +59,72 @@ export const createJob = async (req: AuthenticatedRequest, res: Response) => {
     return sendError(res, 'فشل نشر الوظيفة.', [error.message], 500);
   }
 };
+
+export const getMyJobs = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return sendError(res, 'غير مصرح.', [], 401);
+
+    const jobs = await prisma.job.findMany({
+      where: { publisherId: userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, 'إعلاناتي الوظيفية', jobs);
+  } catch (error: any) {
+    return sendError(res, 'فشل جلب الإعلانات الوظيفية.', [error.message], 500);
+  }
+};
+
+export const deleteJob = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) return sendError(res, 'الإعلان الوظيفي غير موجود.', [], 404);
+
+    if (job.publisherId !== userId && req.user?.role !== 'ADMIN') {
+      return sendError(res, 'غير مصرح لك بحذف هذا الإعلان.', [], 403);
+    }
+
+    await prisma.job.delete({ where: { id } });
+    return sendSuccess(res, 'تم حذف الإعلان الوظيفي بنجاح.');
+  } catch (error: any) {
+    return sendError(res, 'فشل حذف الإعلان الوظيفي.', [error.message], 500);
+  }
+};
+
+export const updateJob = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) return sendError(res, 'الإعلان الوظيفي غير موجود.', [], 404);
+
+    if (job.publisherId !== userId && req.user?.role !== 'ADMIN') {
+      return sendError(res, 'غير مصرح لك بتعديل هذا الإعلان.', [], 403);
+    }
+
+    const { title, description, roleCategory, governorate, salaryRange, experienceYears, contactPhone } = req.body;
+
+    const updated = await prisma.job.update({
+      where: { id },
+      data: {
+        title,
+        description,
+        roleCategory,
+        governorate,
+        salaryRange,
+        experienceYears,
+        contactPhone,
+      },
+    });
+
+    return sendSuccess(res, 'تم تحديث الإعلان الوظيفي بنجاح!', updated);
+  } catch (error: any) {
+    return sendError(res, 'فشل تحديث الإعلان الوظيفي.', [error.message], 500);
+  }
+};
+

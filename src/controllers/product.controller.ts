@@ -139,3 +139,21 @@ export const getCategories = async (req: Request, res: Response) => {
     return sendError(res, 'فشل جلب التصنيفات.', [error.message], 500);
   }
 };
+
+export const getMyProducts = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return sendError(res, 'غير مصرح.', [], 401);
+
+    const products = await prisma.product.findMany({
+      where: { sellerId: userId },
+      include: { category: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, 'قائمة إعلاناتي بالسوق', products);
+  } catch (error: any) {
+    return sendError(res, 'فشل جلب إعلانات المستخدم.', [error.message], 500);
+  }
+};
+
