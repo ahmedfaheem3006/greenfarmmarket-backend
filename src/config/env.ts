@@ -87,6 +87,9 @@ export const env = {
   JWT_ACCESS_EXPIRATION: process.env.JWT_ACCESS_EXPIRATION || '15m',
   JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION || '7d',
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
-  AI_API_URL: process.env.AI_API_URL || '',
+  AI_API_URL: process.env.AI_API_URL || 'https://api.groq.com/openai/v1',
   AI_API_KEY: process.env.AI_API_KEY || '',
+  GROQ_API_KEY: process.env.GROQ_API_KEY || process.env.AI_API_KEY || '',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  GROQ_VISION_MODEL: process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview',
 };
