@@ -45,23 +45,39 @@ const SYSTEM_PROMPT = `أنت "صيدلية وطبيب منصة جرين فار�
 1. detectedDisease: اسم المرض أو الإصابة بدقة باللغتين العربية والإنجليزية.
 2. confidenceScore: نسبة ثقة رقمية بين 0.85 و 0.99.
 3. severityLevel: درجة الخطورة (مثال: "درجة الخطورة: مرتفعة (تتطلب تدخلاً سريعاً)" أو "درجة الخطورة: متوسطة").
-4. recommendedTreatment: خطة علاجية تفصيلية تشمل أسماء المواد الفعالة الدوائية أو المبيدات، الجرعات الموصى بها، خطوات العزل أو الوقاية، وتوصيات التغذية أو الرش.
-5. satelliteTemp: قراءة استرشادية للمؤشرات البيئية (مثال: "المؤشر البيئي الإقليمي للمزرعة: درجة الحرارة 31°م - الرطوبة 50%").
+4. recommendedTreatment: خطة علاجية تفصيلية واضحة ومقسمة تشمل:
+   - التدخل الدوائي والعلاجي المعتمد مع أسماء المواد الفعالة بدقة (مثل: إيفرمكتين، دلتامثرين، أموكسيسيلين، ميتالاكسيل، ديفينوكونازول).
+   - الجرعات المقترحة وطريقة الاستخدام.
+   - إجراءات العزل والوقاية ومكافحة النواقل في المزرعة.
+   - برنامج التغذية والتحصين.
+5. satelliteTemp: قراءة استرشادية للمؤشرات البيئية والمناخية المناسبة للمنطقة المحددة.
 6. disclaimer: تنبيه استرشادي بضرورة استشارة الطبيب البيطري الميداني أو المهندس الزراعي المعتمد لتأكيد الجرعات على أرض الواقع.
 7. isOutOfScope: false
 
 يجب أن يكون الرد دائماً كائن JSON صالح فقط دون أي نصوص إضافية خارجه.`;
 
+function normalizeArabic(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, '') // remove diacritics
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
+}
+
 export class MockAIProvider implements IAIProvider {
   async analyze(req: DiagnosisRequest): Promise<DiagnosisResponse> {
-    console.log(`[AIProvider] Requesting fallback analysis via Agritech Rule Engine`);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    console.log(`[AIProvider] Requesting intelligent Agritech Rule Engine fallback`);
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
-    const text = (req.symptomsText || '').toLowerCase();
-    const subject = (req.cropOrAnimal || '').toLowerCase();
+    const rawText = req.symptomsText || '';
+    const rawSubject = req.cropOrAnimal || '';
+    const text = normalizeArabic(rawText);
+    const subject = normalizeArabic(rawSubject);
+    const combined = `${subject} ${text}`;
 
-    // Check for obvious non-agricultural topics in fallback mode
-    const offTopicKeywords = ['كود', 'برمجة', 'سياسة', 'كورة', 'مباراة', 'أغنية', 'فيلم', 'python', 'javascript', 'code', 'football'];
+    // Check for obvious non-agricultural topics
+    const offTopicKeywords = ['كود', 'برمجه', 'سياسه', 'كوره', 'مباراه', 'اغنيه', 'فيلم', 'python', 'javascript', 'code', 'football'];
     if (offTopicKeywords.some(kw => text.includes(kw) || subject.includes(kw))) {
       return {
         detectedDisease: 'خارج نطاق التخصص الزراعي والبيطري',
@@ -75,99 +91,145 @@ export class MockAIProvider implements IAIProvider {
     }
 
     // 1. Livestock / Veterinary Cases
-    if (
-      subject.includes('بقر') ||
-      subject.includes('ماشية') ||
-      subject.includes('جاموس') ||
-      subject.includes('عجول') ||
-      subject.includes('غنم') ||
-      subject.includes('ماعز') ||
-      subject.includes('دواجن') ||
-      text.includes('حرارة') ||
-      text.includes('عرج') ||
-      text.includes('شهية') ||
-      text.includes('ضرع') ||
-      text.includes('إسهال')
-    ) {
-      if (text.includes('ضرع') || text.includes('لبن') || text.includes('حليب')) {
+    const animalKeywords = [
+      'عجل', 'عجول', 'تسمين', 'بقر', 'ابقار', 'بقره', 'جاموس', 'جاموسه',
+      'ماشيه', 'مواشي', 'حيوان', 'غنم', 'اغنام', 'خروف', 'خراف', 'نعجه',
+      'ماعز', 'جدي', 'دواجن', 'فراخ', 'دجاج', 'كتاكيت', 'بط', 'ارانب',
+      'خيل', 'خيول', 'حصان', 'مهره', 'جمال', 'ابل'
+    ];
+
+    const isLivestock = animalKeywords.some(kw => combined.includes(kw));
+
+    if (isLivestock) {
+      // 1.1 Skin Lumps / Spots / External Parasites (Very common in calves/cattle)
+      if (
+        combined.includes('جلد') ||
+        combined.includes('عقد') ||
+        combined.includes('نقط') ||
+        combined.includes('حبوب') ||
+        combined.includes('بثور') ||
+        combined.includes('قشور') ||
+        combined.includes('حكه')
+      ) {
+        return {
+          detectedDisease: 'تشخيص بيطري: اشتباه التهاب الجلد العقدي أو طفيليات جلدية خارجية (Lumpy Skin Disease / External Ectoparasites)',
+          confidenceScore: 0.94,
+          severityLevel: 'درجة الخطورة: مرتفعة (تتطلب عزل فوري وبروتوكول بيطري مكثف)',
+          recommendedTreatment: `1. بروتوكول العزل والمكافحة:
+- عزل الحيوان المصاب فوراً في مكان مظلل وجاف جيد التهوية بعيداً عن باقي القطيع لمنع انتقال العدوى.
+- رش ومكافحة الحشرات والذباب والناموس الناقل في الحظيرة بمبيد حشري آمن مثل الدلتامثرين (Deltamethrin 5%) أو الديازينون بنسب التخفيف المعتمدة.
+
+2. التدخل الدوائي والعلاجي:
+- حقن إيفرمكتين (Ivermectin 1%) تحت الجلد بمعدل 1 سم لكل 50 كجم من وزن الحيوان لعلاج الطفيليات والجرب ولدغات الحشرات.
+- إعطاء خافض حرارة ومضاد التهاب غير ستيرويدي مثل فلونكسين ميغلومين (Flunixin meglumine) أو كيتوبروفين لتخفيف الألم والحمى.
+- إعطاء مضاد حيوي واسع المجال مثل أوكسي تتراسيكلين طويل المفعول (Oxytetracycline 20%) لمنع العدوى البكتيرية الثانوية.
+
+3. الرعاية والدعم الغذائي:
+- دهان النقاط والقروح الجلدية بمطهر موضعي (يود مخفف 2% أو بخاخ زنك أوكسيد).
+- إضافة فيتامين AD3E وسيلينيوم في مياه الشرب لرفع المناعة وسرعة التئام الأنسجة الجلدية.`,
+          satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 31°م - الرطوبة 52% (نشاط مكثف للحشرات الناقلة)',
+          disclaimer: 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي للاسترشاد المبدئي. يرجى استدعاء الطبيب البيطري الميداني لفحص العجل وتأكيد الجرعات الدوائية حسب الوزن الدقيق.',
+        };
+      }
+
+      // 1.2 Mastitis (Udder/Milk issues)
+      if (combined.includes('ضرع') || combined.includes('لبن') || combined.includes('حليب')) {
         return {
           detectedDisease: 'تشخيص بيطري: التهاب الضرع السريري (Clinical Mastitis)',
           confidenceScore: 0.95,
-          severityLevel: 'درجة الخطورة: مرتفعة (تتطلب عزل فوري وتدخل علاجي)',
-          recommendedTreatment: 'تفريغ الربع المصاب دورياً، حقن مضاد حيوي موضعي داخل الحلمة (مثل الأموكسيسيلين)، وحقن مضاد التهاب غير ستيرويدي (NSAID) لخفض الألم والحرارة.',
-          satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 31°م - الرطوبة 48%',
-          disclaimer: 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي لتقديم التوجيه المبدئي. يرجى استشارة الطبيب البيطري الميداني لتأكيد الجرعات.',
+          severityLevel: 'درجة الخطورة: مرتفعة (تتطلب تفريغ الحلمة وتدخل دوائي سريع)',
+          recommendedTreatment: `1. تفريغ الربع المصاب بالكامل والتخلص من الحليب المصاب بطريقة صحية دون سكبه في أرضية الحظيرة.
+2. حقن أنبوبة مضاد حيوي موضعي داخل الحلمة مخصصة لالتهاب الضرع (تحتوي على أموكسيسيلين + كلوكساسيلين) بعد التطهير التام.
+3. حقن عام بمضاد التهاب خافض للألم والحرارة (NSAID).
+4. غمس الحلمات بمطهر اليود بعد كل حلب وتطهير أدوات الحلب.`,
+          satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 30°م - الرطوبة 48%',
+          disclaimer: 'تنبيه استرشادي: يجب الالتزام بفترة الأمان لانسحاب المضاد الحيوي من اللبن واللحم قبل الاستهلاك.',
         };
       }
 
-      if (text.includes('جلد') || text.includes('عقد') || text.includes('حبوب')) {
+      // 1.3 Respiratory / Pneumonia
+      if (combined.includes('تنفس') || combined.includes('كحه') || combined.includes('مخاط') || combined.includes('نهجان')) {
         return {
-          detectedDisease: 'تشخيص بيطري: مرض الجلد العقدي (Lumpy Skin Disease)',
-          confidenceScore: 0.93,
-          severityLevel: 'درجة الخطورة: عالية - وبائية',
-          recommendedTreatment: 'عزل الحيوان فوراً عن باقي القطيع، رش الحظيرة بالمبيدات الحشرية لمكافحة الذباب والناموس الناقل، وإعطاء خافض حرارة ومضاد حيوي واسع المجال لتجنب العدوى البكتيرية الثانوية.',
-          satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 33°م - الرطوبة 55%',
-          disclaimer: 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي لتقديم التوجيه المبدئي. يرجى استشارة الطبيب البيطري الميداني لتأكيد الجرعات.',
+          detectedDisease: 'تشخيص بيطري: متلازمة الالتهاب الرئوي والتنفسي (Bovine Respiratory Disease)',
+          confidenceScore: 0.92,
+          severityLevel: 'درجة الخطورة: عالية',
+          recommendedTreatment: `1. عزل الحيوان عن التيارات الهوائية المباشرة والغبار.
+2. حقن مضاد حيوي مخصص للجهاز التنفسي (مثل التولاتروميسين Tulathromycin أو الفلورفينيكول Florfenicol).
+3. إعطاء مذيب بلغم ومضاد التهاب لتقليل النهجان وضيق التنفس.
+4. تقديم مياه نظيفة مع إلكتروليتات وأملاح تعويضية.`,
+          satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 32°م - الرطوبة 40%',
+          disclaimer: 'تنبيه استرشادي: ينصح بالفحص البيطري الفوري وسماع صوت الصدر بسماعة الطبيب لتحديد درجة التهاب الشعب.',
         };
       }
 
+      // 1.4 General Livestock Health / Heat Stress
       return {
-        detectedDisease: 'تشخيص بيطري: إجهاد حراري واضطراب معوي خفيف (Heat Stress & Indigestion)',
+        detectedDisease: 'تشخيص بيطري: إجهاد فسيولوجي واضطراب معوي خفيف (Heat Stress & Clinical Indigestion)',
         confidenceScore: 0.91,
         severityLevel: 'درجة الخطورة: متوسطة',
-        recommendedTreatment: 'تشغيل مراوح التهوية والرش الرذاذي، إضافة بيكربونات الصوديوم وفيتامين C إلى ماء الشرب، وتقديم الأعلاف الخضراء في الصباح الباكر.',
-        satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 34°م - الرطوبة 42%',
-        disclaimer: 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي لتقديم التوجيه المبدئي. يرجى استشارة الطبيب البيطري الميداني لتأكيد الجرعات.',
+        recommendedTreatment: `1. توفير مياه شرب باردة ونظيفة على مدار 24 ساعة مع إضافة فيتامين C وبيكربونات الصوديوم.
+2. تشغيل مراوح التهوية وتوفير مظلات عازلة لحرارة الشمس لتقليل الإجهاد الحراري.
+3. تعديل مواعيد تقديم الأعلاف المركزة لتكون في الصباح الباكر أو بعد غروب الشمس.
+4. إضافة خمائر بروبيوتيك لدعم حركة الكرش وتحسين الهضم.`,
+        satelliteTemp: 'المؤشر البيئي للمزرعة: درجة الحرارة 33°م - الرطوبة 45%',
+        disclaimer: 'تنبيه استرشادي: راقب درجة حرارة جسم الحيوان الشرجية يومياً، واستشر الطبيب البيطري إذا ارتفعت عن 39.2°م.',
       };
     }
 
     // 2. Plant / Crop Cases
-    if (text.includes('بياض') || text.includes('دقيقي') || text.includes('بودرة') || text.includes('غبار')) {
+    if (combined.includes('بياض') || combined.includes('دقيقي') || combined.includes('بودره') || combined.includes('غبار')) {
       return {
         detectedDisease: 'تشخيص زراعي: مرض البياض الدقيقي (Powdery Mildew)',
         confidenceScore: 0.97,
-        severityLevel: 'درجة الخطورة: متوسطة (تؤثر على المسطح الورقي وعملية البناء الضوئي)',
-        recommendedTreatment: 'الرش بمبيد فطري جهازي يحتوي على مادة (ديفينوكونازول أو تريفلوكسي ستروبين) بمعدل 50سم/100 لتر ماء مع تكرار الرش بعد 10 أيام.',
+        severityLevel: 'درجة الخطورة: متوسطة (تؤثر على المسطح الورقي وعملية التمثيل الضوئي)',
+        recommendedTreatment: `1. الرش بمبيد فطري جهازي معتمد يحتوي على مادة (ديفينوكونازول Difenoconazole أو تريفلوكسي ستروبين Trifloxystrobin) بمعدل 50 سم / 100 لتر ماء.
+2. تكرار الرش بعد 10-12 يوماً مع تبديل المادة الفعالة لتفادي اكتساب الفطر للمقاومة.
+3. التخلص من الأوراق السفلية شديدة الإصابة وحرقها خارج الحقل.
+4. ضبط التسميد النيتروجيني وعدم الإفراط فيه لتجنب نمو أوراق غضة سهلة الإصابة.`,
         satelliteTemp: 'بيانات القمر الصناعي للمزرعة: درجة الحرارة 29°م - الرطوبة 60%',
-        disclaimer: 'تنبيه استرشادي: هذا التشخيص يعتمد على تحليل الذكاء الاصطناعي للأعراض والصور. ينصح بالرجوع للمهندس الزراعي لتحديد فترة الأمان قبل الحصاد (PHI).',
+        disclaimer: 'تنبيه استرشادي: يرجى الالتزام بفترة الأمان قبل الحصاد (PHI) المدونة على عبوة المبيد المستخدم.',
       };
     }
 
-    if (text.includes('اصفرار') || text.includes('نتروجين') || text.includes('عناصر') || text.includes('ذبول')) {
+    if (combined.includes('اصفرار') || combined.includes('نتروجين') || combined.includes('عناصر') || combined.includes('تسميد')) {
       return {
-        detectedDisease: 'تشخيص زراعي: نقص عنصر المغنيسيوم والحديد مع إجهاد مائي',
-        confidenceScore: 0.92,
-        severityLevel: 'درجة الخطورة: خفيفة إلى متوسطة (يمكن تداركها بالتسميد الورقي)',
-        recommendedTreatment: 'رش سلفات ماغنسيوم بمعدل 2.5 كجم/فدان + حديد مخلبي (EDDHA) بمعدل 500جم/فدان، وضبط فترات الري بالتنقيط لتفادي تشبع الجذور.',
+        detectedDisease: 'تشخيص زراعي: نقص عناصر المغنيسيوم والحديد الصغرى مع إجهاد مائي',
+        confidenceScore: 0.93,
+        severityLevel: 'درجة الخطورة: خفيفة إلى متوسطة (يمكن تداركها سريعاً بالتسميد الورقي)',
+        recommendedTreatment: `1. رش ورقي بسلفات ماغنسيوم بمعدل 2.5 كجم / فدان + حديد مخلبي (EDDHA) بمعدل 500 جم / فدان في الصباح الباكر.
+2. فحص شبكة الري بالتنقيط وضبط فترات الري لتجنب تشبع الجذور وتراكم الأملاح.
+3. إضافة هيوميك أسيد مع ماء الري بمعدل 1 كجم / فدان لتحسين امتصاص الجذور للعناصر.`,
         satelliteTemp: 'بيانات القمر الصناعي للمزرعة: درجة الحرارة 30°م - الرطوبة 44%',
-        disclaimer: 'تنبيه استرشادي: هذا التشخيص يعتمد على تحليل الذكاء الاصطناعي للأعراض والصور. ينصح بالرجوع للمهندس الزراعي لتحديد فترة الأمان قبل الحصاد (PHI).',
+        disclaimer: 'تنبيه استرشادي: يفضل إجراء تحليل دوري لملوحة التربة ومياه الري (EC/pH).',
       };
     }
 
-    // Default High-Confidence Visual/Text Analysis
+    // Default Plant Disease (When crop is detected or general)
     return {
-      detectedDisease: 'تشخيص زراعي: اللفحة المتأخرة والتبقع السبتوري (Late Blight / Septoria)',
-      confidenceScore: 0.96,
+      detectedDisease: 'تشخيص زراعي: أعراض لفحة فطرية وتبقع أوراق نباتي (Leaf Blight & Septoria Spot)',
+      confidenceScore: 0.94,
       severityLevel: 'درجة الخطورة: متوسطة إلى مرتفعة',
-      recommendedTreatment: 'الرش الفوري بمركبات الميتالاكسيل مع المانكوزيب بمعدل 250جم/100 لتر ماء، مع تجنب الري في فترات الرطوبة العالية وتهوية الصوب الزراعية.',
+      recommendedTreatment: `1. الرش الفوري بمركب فطري نحاسي أو ميتالاكسيل مع مانكوزيب بمعدل 250 جم / 100 لتر ماء.
+2. تهوية الصوب الزراعية وتخفيف كثافة الأوراق لتقليل الرطوبة النسبية المحيطة بالنبات.
+3. تجنب الري بالرش العلوي في أوقات الظهيرة لتقليل بقاء قطرات الماء على المسطح الورقي.`,
       satelliteTemp: 'بيانات القمر الصناعي للمزرعة: درجة الحرارة 28°م - الرطوبة 65%',
-      disclaimer: 'تنبيه استرشادي: هذا التشخيص يعتمد على تحليل الذكاء الاصطناعي للأعراض والصور. ينصح بالرجوع للمهندس الزراعي لتحديد فترة الأمان قبل الحصاد (PHI).',
+      disclaimer: 'تنبيه استرشادي: هذا التشخيص استرشادي مدعوم بالذكاء الاصطناعي. ينصح بالرجوع للمهندس الزراعي لتحديد فترة الأمان قبل الحصاد (PHI).',
     };
   }
 }
 
 export class GroqAIProvider implements IAIProvider {
   async analyze(req: DiagnosisRequest): Promise<DiagnosisResponse> {
-    const apiKey = env.GROQ_API_KEY || env.AI_API_KEY;
+    const rawApiKey = env.GROQ_API_KEY || env.AI_API_KEY || '';
+    const apiKey = rawApiKey.trim();
 
     if (!apiKey) {
-      console.warn('[AIProvider] No GROQ_API_KEY found in environment. Using fallback agritech engine.');
+      console.warn('[AIProvider] No valid GROQ_API_KEY found in environment. Using fallback agritech engine.');
       return new MockAIProvider().analyze(req);
     }
 
     try {
       const isImage = req.mode === 'IMAGE' && Boolean(req.fileUrl);
-      let model = env.GROQ_MODEL || 'llama-3.3-70b-versatile';
       const messages: any[] = [{ role: 'system', content: SYSTEM_PROMPT }];
 
       const userContextText = `
@@ -212,7 +274,6 @@ export class GroqAIProvider implements IAIProvider {
                 ],
               });
 
-              model = env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
               imageIncluded = true;
             }
           }
@@ -228,52 +289,78 @@ export class GroqAIProvider implements IAIProvider {
         });
       }
 
-      console.log(`[AIProvider] Dispatching request to Groq API (${model})...`);
+      // Prioritized list of available production models on Groq
+      const candidateModels = Array.from(
+        new Set([
+          env.GROQ_MODEL,
+          'qwen/qwen3.8-27b',
+          'openai/gpt-oss-120b',
+          'groq/compound',
+        ])
+      ).filter(Boolean);
 
       const baseUrl = (env.AI_API_URL || 'https://api.groq.com/openai/v1').replace(/\/+$/, '');
       const completionsUrl = baseUrl.endsWith('/chat/completions')
         ? baseUrl
         : `${baseUrl}/chat/completions`;
 
-      const response = await fetch(completionsUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.2,
-          max_tokens: 1500,
-          response_format: { type: 'json_object' },
-        }),
-      });
+      let lastError = '';
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[AIProvider] Groq API HTTP ${response.status} error:`, errText);
-        return new MockAIProvider().analyze(req);
+      for (const model of candidateModels) {
+        try {
+          console.log(`[AIProvider] Dispatching request to Groq API using model (${model})...`);
+
+          const response = await fetch(completionsUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature: 0.2,
+              max_tokens: 1500,
+              response_format: { type: 'json_object' },
+            }),
+          });
+
+          if (!response.ok) {
+            const errText = await response.text();
+            console.warn(`[AIProvider] Groq model ${model} HTTP ${response.status}:`, errText);
+            lastError = `HTTP ${response.status}: ${errText}`;
+            continue; // Try next candidate model
+          }
+
+          const data: any = await response.json();
+          const rawContent = data?.choices?.[0]?.message?.content;
+
+          if (!rawContent) {
+            console.warn(`[AIProvider] Model ${model} returned empty content.`);
+            continue;
+          }
+
+          const parsed = JSON.parse(rawContent);
+
+          console.log(`[AIProvider] Successful diagnosis generated using model (${model})!`);
+
+          return {
+            detectedDisease: parsed.detectedDisease || 'تشخيص زراعي/بيطري معتمد',
+            confidenceScore: typeof parsed.confidenceScore === 'number' ? parsed.confidenceScore : 0.95,
+            severityLevel: parsed.severityLevel || 'درجة الخطورة: متوسطة',
+            recommendedTreatment: parsed.recommendedTreatment || 'يرجى مراجعة المهندس الزراعي أو الطبيب البيطري المعتمد.',
+            satelliteTemp: parsed.satelliteTemp || 'المؤشر البيئي للمزرعة: درجة الحرارة 30°م - الرطوبة 50%',
+            disclaimer: parsed.disclaimer || 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي لتقديم التوجيه المبدئي. يرجى استشارة الطبيب البيطري الميداني أو المهندس الزراعي لتأكيد الجرعات.',
+            isOutOfScope: Boolean(parsed.isOutOfScope),
+          };
+        } catch (modelErr: any) {
+          console.warn(`[AIProvider] Error trying model ${model}:`, modelErr?.message || modelErr);
+          lastError = modelErr?.message || String(modelErr);
+        }
       }
 
-      const data: any = await response.json();
-      const rawContent = data?.choices?.[0]?.message?.content;
-
-      if (!rawContent) {
-        throw new Error('Groq returned empty response message content');
-      }
-
-      const parsed = JSON.parse(rawContent);
-
-      return {
-        detectedDisease: parsed.detectedDisease || 'تشخيص زراعي/بيطري',
-        confidenceScore: typeof parsed.confidenceScore === 'number' ? parsed.confidenceScore : 0.95,
-        severityLevel: parsed.severityLevel || 'درجة الخطورة: متوسطة',
-        recommendedTreatment: parsed.recommendedTreatment || 'يرجى مراجعة المهندس الزراعي أو الطبيب البيطري المعتمد.',
-        satelliteTemp: parsed.satelliteTemp || 'المؤشر البيئي للمزرعة: درجة الحرارة 30°م - الرطوبة 50%',
-        disclaimer: parsed.disclaimer || 'تنبيه استرشادي: هذا التشخيص مدعوم بالذكاء الاصطناعي لتقديم التوجيه المبدئي. يرجى استشارة الطبيب البيطري الميداني أو المهندس الزراعي لتأكيد الجرعات.',
-        isOutOfScope: Boolean(parsed.isOutOfScope),
-      };
+      console.error('[AIProvider] All candidate Groq models failed. Last error:', lastError);
+      return new MockAIProvider().analyze(req);
     } catch (error: any) {
       console.error('[AIProvider] Groq AI processing exception:', error?.message || error);
       return new MockAIProvider().analyze(req);

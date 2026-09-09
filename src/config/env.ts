@@ -90,6 +90,6 @@ export const env = {
   AI_API_URL: process.env.AI_API_URL || 'https://api.groq.com/openai/v1',
   AI_API_KEY: process.env.AI_API_KEY || '',
   GROQ_API_KEY: process.env.GROQ_API_KEY || process.env.AI_API_KEY || '',
-  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-  GROQ_VISION_MODEL: process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
+  GROQ_VISION_MODEL: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
 };
