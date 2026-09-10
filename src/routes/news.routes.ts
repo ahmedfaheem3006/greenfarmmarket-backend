@@ -7,7 +7,9 @@ import {
   deleteArticle,
   getMarketUpdates,
   createMarketUpdate,
+  updateMarketPrice,
   deleteMarketUpdate,
+  syncDailyMarketPrices,
 } from '../controllers/news.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
 
@@ -24,6 +26,8 @@ router.put('/:id', authenticateJWT, updateArticle);
 router.delete('/:id', authenticateJWT, deleteArticle);
 
 router.post('/market', authenticateJWT, createMarketUpdate);
+router.post('/market/sync', authenticateJWT, syncDailyMarketPrices);
+router.put('/market/:id', authenticateJWT, updateMarketPrice);
 router.delete('/market/:id', authenticateJWT, deleteMarketUpdate);
 
 export default router;
