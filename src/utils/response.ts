@@ -19,19 +19,27 @@ export const sendError = (res: Response, message: string, errors: any[] = [], st
   const isProduction = process.env.NODE_ENV === 'production';
   let finalMessage = message;
 
-  if (isProduction && statusCode === 500) {
+  if (statusCode === 500) {
+    console.error('[SERVER_500_ERROR]', { message, errors });
+
+    const isMissingTable = errors.some(
+      (err) => typeof err === 'string' && (err.includes("doesn't exist") || err.includes('does not exist'))
+    );
     const isDbError = errors.some(
       (err) =>
         typeof err === 'string' &&
         (err.includes('pool timeout') ||
-          err.includes('prisma') ||
-          err.includes('Prisma') ||
-          err.includes('MariaDB') ||
-          err.includes('mariadb') ||
+          err.includes('ECONNREFUSED') ||
+          err.includes('ETIMEDOUT') ||
+          err.includes('Access denied') ||
+          err.includes('Can\'t connect') ||
           err.includes('connection'))
     );
-    if (isDbError) {
-      finalMessage = 'فشل في الاتصال بقاعدة البيانات.';
+
+    if (isMissingTable) {
+      finalMessage = 'قاعدة البيانات متصلة ولكن الجداول لم يتم تهيئتها بعد (يرجى تنفيذ npx prisma migrate deploy في الاستضافة).';
+    } else if (isDbError) {
+      finalMessage = 'فشل في الاتصال بقاعدة البيانات. يرجى التحقق من صحة بيانات الاتصال بـ MySQL.';
     }
   }
 

@@ -16,20 +16,31 @@ export interface DatabaseProbeResult {
  * Used for startup/health diagnostics. Safe server-side logging without credentials.
  */
 export async function probeDatabaseConnection(): Promise<DatabaseProbeResult> {
-  const host = process.env.DB_HOST || 'localhost';
-  const port = Number(process.env.DB_PORT || 3306);
-  const user = process.env.DB_USER || 'root';
-  const password = process.env.DB_PASSWORD || '';
-  const database = process.env.DB_NAME || '';
+  let host = process.env.DB_HOST || '127.0.0.1';
+  let port = Number(process.env.DB_PORT || 3306);
+  let user = process.env.DB_USER || '';
+  let password = process.env.DB_PASSWORD || '';
+  let database = process.env.DB_NAME || '';
+
+  if (!user && process.env.DATABASE_URL) {
+    try {
+      const parsed = new URL(process.env.DATABASE_URL);
+      host = parsed.hostname || host;
+      port = Number(parsed.port || 3306);
+      user = decodeURIComponent(parsed.username || '');
+      password = decodeURIComponent(parsed.password || '');
+      database = parsed.pathname.replace(/^\//, '');
+    } catch {}
+  }
 
   let conn: Connection | null = null;
   try {
     conn = await mariadb.createConnection({
       host,
       port,
-      user,
+      user: user || 'root',
       password,
-      database,
+      database: database || 'greenfarm',
       connectTimeout: 5000,
     });
 

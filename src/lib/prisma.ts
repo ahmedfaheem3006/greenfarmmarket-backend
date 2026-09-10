@@ -2,33 +2,37 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { getFormattedDatabaseUrl } from '../config/env';
 
-// If USE_PRISMA_ADAPTER is set to 'false', Prisma falls back to standard Prisma 6.19 MySQL engine
-const useAdapter = process.env.USE_PRISMA_ADAPTER !== 'false';
+// By default, use standard Prisma 6.19 native MySQL engine (rock-solid connection pool, auto-reconnect, zero adapter dead-socket hangs).
+// If USE_PRISMA_ADAPTER is explicitly set to 'true', Prisma uses @prisma/adapter-mariadb.
+const useAdapter = process.env.USE_PRISMA_ADAPTER === 'true';
 
 const getAdapter = () => {
-  if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME) {
-    return new PrismaMariaDb({
-      host: process.env.DB_HOST,
-      port: Number(process.env.DB_PORT || 3306),
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME,
-      connectionLimit: 5,
-    });
-  }
+  let host = process.env.DB_HOST || '127.0.0.1';
+  let port = Number(process.env.DB_PORT || 3306);
+  let user = process.env.DB_USER || '';
+  let password = process.env.DB_PASSWORD || '';
+  let database = process.env.DB_NAME || '';
 
-  const formattedUrl = getFormattedDatabaseUrl();
-  if (formattedUrl) {
-    return new PrismaMariaDb(formattedUrl);
+  if (!user && process.env.DATABASE_URL) {
+    try {
+      const parsed = new URL(process.env.DATABASE_URL);
+      host = parsed.hostname || host;
+      port = Number(parsed.port || 3306);
+      user = decodeURIComponent(parsed.username || '');
+      password = decodeURIComponent(parsed.password || '');
+      database = parsed.pathname.replace(/^\//, '');
+    } catch {}
   }
 
   return new PrismaMariaDb({
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'greenfarm',
-    connectionLimit: 5,
+    host,
+    port,
+    user: user || 'root',
+    password,
+    database: database || 'greenfarm',
+    connectionLimit: 10,
+    connectTimeout: 10000,
+    idleTimeout: 15000,
   });
 };
 
@@ -37,17 +41,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const createPrismaClient = (): PrismaClient => {
+  const formattedUrl = getFormattedDatabaseUrl();
+
   if (useAdapter) {
-    // Driver Adapters in Prisma 6 do NOT allow custom datasources parameter inside PrismaClient constructor
     return new PrismaClient({
       adapter: getAdapter(),
+      log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     });
   }
 
-  // Fallback: standard Prisma 6.19 MySQL engine using dynamically resolved DATABASE_URL
-  const formattedUrl = getFormattedDatabaseUrl();
+  // Standard Prisma 6 native MySQL engine:
   return new PrismaClient({
     ...(formattedUrl ? { datasources: { db: { url: formattedUrl } } } : {}),
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 };
 
